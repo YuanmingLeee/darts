@@ -8,12 +8,10 @@ import utils
 import logging
 import argparse
 import torch.nn as nn
-import genotypes
 import torch.utils
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
 
-from torch.autograd import Variable
 from model import NetworkCIFAR as Network
 
 
@@ -114,22 +112,21 @@ def train(train_queue, model, criterion, optimizer):
   top5 = utils.AvgrageMeter()
   model.train()
 
-  for step, (input, target) in enumerate(train_queue):
-    input = Variable(input).cuda()
-    target = Variable(target).cuda(async=True)
+  for step, (inputs, targets) in enumerate(train_queue):
+    inputs, targets = inputs.cuda(), targets.cuda()
 
     optimizer.zero_grad()
-    logits, logits_aux = model(input)
-    loss = criterion(logits, target)
+    logits, logits_aux = model(inputs)
+    loss = criterion(logits, targets)
     if args.auxiliary:
-      loss_aux = criterion(logits_aux, target)
+      loss_aux = criterion(logits_aux, targets)
       loss += args.auxiliary_weight*loss_aux
     loss.backward()
     nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
     optimizer.step()
 
-    prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
-    n = input.size(0)
+    prec1, prec5 = utils.accuracy(logits, targets, topk=(1, 5))
+    n = inputs.size(0)
     objs.update(loss.data[0], n)
     top1.update(prec1.data[0], n)
     top5.update(prec5.data[0], n)
@@ -146,15 +143,14 @@ def infer(valid_queue, model, criterion):
   top5 = utils.AvgrageMeter()
   model.eval()
 
-  for step, (input, target) in enumerate(valid_queue):
-    input = Variable(input, volatile=True).cuda()
-    target = Variable(target, volatile=True).cuda(async=True)
+  for step, (inputs, targets) in enumerate(valid_queue):
+    inputs, targets = inputs.cuda(), targets.cuda()
 
-    logits, _ = model(input)
-    loss = criterion(logits, target)
+    logits, _ = model(inputs)
+    loss = criterion(logits, targets)
 
-    prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
-    n = input.size(0)
+    prec1, prec5 = utils.accuracy(logits, targets, topk=(1, 5))
+    n = inputs.size(0)
     objs.update(loss.data[0], n)
     top1.update(prec1.data[0], n)
     top5.update(prec5.data[0], n)
