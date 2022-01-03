@@ -71,7 +71,7 @@ class Network(nn.Module):
 
         C_curr = stem_multiplier * C
         self.stem = nn.Sequential(
-            nn.Conv2d(3, C_curr, (3,), padding=1, bias=False),
+            nn.Conv2d(3, C_curr, 3, 1, 1, bias=False),
             nn.BatchNorm2d(C_curr)
         )
 

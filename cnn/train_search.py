@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.utils.data
 import torch.nn.functional as F
+import torchvision
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
 
@@ -104,8 +105,8 @@ def main(args):
         genotype = model.genotype()
         logging.info('genotype = %s', genotype)
 
-        print(F.softmax(model.alphas_normal, dim=-1))
-        print(F.softmax(model.alphas_reduce, dim=-1))
+        # print(F.softmax(model.alphas_normal, dim=-1))
+        # print(F.softmax(model.alphas_reduce, dim=-1))
 
         # training
         train_acc, train_obj = train(train_loader, val_loader, model, architect, criterion, optimizer, lr, **vars(args))
@@ -132,10 +133,10 @@ def train(train_loader, val_loader, model, architect, criterion, optimizer, lr, 
         input_search, target_search = next(iter(val_loader))
         input_search, target_search = input_search.cuda(), target_search.cuda()
 
-        architect.step(input, targets, input_search, target_search, lr, optimizer, unrolled=unrolled)
+        architect.step(inputs, targets, input_search, target_search, lr, optimizer, unrolled=unrolled)
 
         optimizer.zero_grad()
-        logits = model(input)
+        logits = model(inputs)
         loss = criterion(logits, targets)
 
         loss.backward()
