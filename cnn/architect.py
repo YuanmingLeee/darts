@@ -1,4 +1,5 @@
 import torch
+import torch.nn
 import numpy as np
 from torch.autograd import Variable
 
@@ -26,7 +27,7 @@ class Architect(object):
         except:
             moment = torch.zeros_like(theta)
         dtheta = _concat(torch.autograd.grad(loss, self.model.parameters())).data + self.network_weight_decay * theta
-        unrolled_model = self._construct_model_from_theta(theta.sub(eta, moment + dtheta))
+        unrolled_model = self._construct_model_from_theta(theta.sub(moment + dtheta, alpha=eta))
         return unrolled_model
 
     def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled):

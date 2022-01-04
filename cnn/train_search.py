@@ -9,10 +9,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.utils.data
-import torch.nn.functional as F
-import torchvision
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
+from tqdm.contrib.logging import logging_redirect_tqdm
+from tqdm import tqdm
 
 import utils
 from architect import Architect
@@ -124,32 +124,35 @@ def train(train_loader, val_loader, model, architect, criterion, optimizer, lr, 
     top1 = utils.AvgrageMeter()
     top5 = utils.AvgrageMeter()
 
-    for step, (inputs, targets) in enumerate(train_loader):
-        inputs, targets = inputs.cuda(), targets.cuda()
-        model.train()
-        n = inputs.size(0)
+    with logging_redirect_tqdm():
+        with tqdm(train_loader) as tbar:
+            for step, (inputs, targets) in enumerate(tbar):
+                inputs, targets = inputs.cuda(), targets.cuda()
+                model.train()
+                n = inputs.size(0)
 
-        # get a random minibatch from the search queue with replacement
-        input_search, target_search = next(iter(val_loader))
-        input_search, target_search = input_search.cuda(), target_search.cuda()
+                # get a random minibatch from the search queue with replacement
+                input_search, target_search = next(iter(val_loader))
+                input_search, target_search = input_search.cuda(), target_search.cuda()
 
-        architect.step(inputs, targets, input_search, target_search, lr, optimizer, unrolled=unrolled)
+                architect.step(inputs, targets, input_search, target_search, lr, optimizer, unrolled=unrolled)
 
-        optimizer.zero_grad()
-        logits = model(inputs)
-        loss = criterion(logits, targets)
+                optimizer.zero_grad()
+                logits = model(inputs)
+                loss = criterion(logits, targets)
 
-        loss.backward()
-        nn.utils.clip_grad_norm(model.parameters(), grad_clip)
-        optimizer.step()
+                loss.backward()
+                nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+                optimizer.step()
 
-        prec1, prec5 = utils.accuracy(logits, targets, topk=(1, 5))
-        objs.update(loss.data[0], n)
-        top1.update(prec1.data[0], n)
-        top5.update(prec5.data[0], n)
+                prec1, prec5 = utils.accuracy(logits, targets, topk=(1, 5))
+                objs.update(loss.item(), n)
+                top1.update(prec1.item(), n)
+                top5.update(prec5.item(), n)
 
-        if step % report_freq == 0:
-            logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+                tbar.set_postfix({'loss': loss.item(), 'top1': prec1.item(), 'top5': prec5.item()})
+                if step % report_freq == 0:
+                    logging.info('train %03d loss_avg=%e top1_avg=%f top5_avg=%f', step, objs.avg, top1.avg, top5.avg)
 
     return top1.avg, objs.avg
 
@@ -160,20 +163,23 @@ def infer(val_loader, model, criterion, report_freq, **kwargs):
     top5 = utils.AvgrageMeter()
     model.eval()
 
-    for step, (inputs, targets) in enumerate(val_loader):
-        inputs, targets = inputs.cuda(), targets.cuda()
+    with logging_redirect_tqdm():
+        with tqdm(val_loader) as tbar:
+            for step, (inputs, targets) in enumerate(tbar):
+                inputs, targets = inputs.cuda(), targets.cuda()
 
-        logits = model(input)
-        loss = criterion(logits, targets)
+                logits = model(inputs)
+                loss = criterion(logits, targets)
 
-        prec1, prec5 = utils.accuracy(logits, targets, topk=(1, 5))
-        n = inputs.size(0)
-        objs.update(loss.data[0], n)
-        top1.update(prec1.data[0], n)
-        top5.update(prec5.data[0], n)
+                prec1, prec5 = utils.accuracy(logits, targets, topk=(1, 5))
+                n = inputs.size(0)
+                objs.update(loss.item(), n)
+                top1.update(prec1.item(), n)
+                top5.update(prec5.item(), n)
 
-        if step % report_freq == 0:
-            logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+                tbar.set_postfix({'loss': loss.item(), 'top1': prec1.item(), 'top5': prec5.item()})
+                if step % report_freq == 0:
+                    logging.info('valid %03d loss_avg=%e top1_avg=%f top5_avg=%f', step, objs.avg, top1.avg, top5.avg)
 
     return top1.avg, objs.avg
 
